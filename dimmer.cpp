@@ -35,6 +35,9 @@
 #define BUTTON_STATES ((~BUTTON_INPUT_GATE) & BUTTON_MASK)
 #define MAX_LONG_PRESS 63
 
+#define DIMING_DIRECTION_DOWN 0
+#define DIMING_DIRECTION_UP 1
+
 mirfPacket volatile inPacket;
 mirfPacket volatile outPacket;
 
@@ -52,6 +55,7 @@ typedef union {
 uint8_t volatile buttonLongPress[3];
 uint8_t volatile lastButtonStates;
 uint8_t volatile pwmOutput[3];
+uint8_t volatile dimmingDirection;
 
 //======================================================
 
@@ -168,9 +172,9 @@ void __attribute__ ((OS_main,noreturn)) main (void)
   }
 
   //handle buttons and pwm
-  for (uint8_t i=3; i != 0; --i)
+  for (uint8_t i=0; i < 3; i++)
   {
-
+	if (buttonLongPress[i] > 
   }
 
 
