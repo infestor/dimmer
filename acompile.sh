@@ -15,7 +15,7 @@ CFLAGS+=" -fno-jump-tables"
 CFLAGS+=" -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums"
 CFLAGS+=" -fno-split-wide-types"
 CFLAGS+=" -Wa,-a,-ad"
-CFLAGS+=" -std=c++98"
+CFLAGS+=" -std=c++11"
 
 #CFLAGS+=" -nostartfiles"
 

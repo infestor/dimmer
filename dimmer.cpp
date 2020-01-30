@@ -18,6 +18,10 @@
 #define	PWM_LVL_2 OCR1B
 #define	PWM_LVL_3 OCR2B
 
+#define RELAY_PIN PD5
+#define RELAY_DDR DDRD
+#define RELAY_PORT PORTD
+
 #define TIMER_3_SEC_PERIOD 300
 #define TIMER_60_SEC_PERIOD 6000
 
@@ -33,10 +37,20 @@
 #define BUTTON_MASK_2 (1 << BUTTON_2)
 #define BUTTON_MASK_3 (1 << BUTTON_3)
 #define BUTTON_STATES ((~BUTTON_INPUT_GATE) & BUTTON_MASK)
-#define MAX_LONG_PRESS 63
+#define MAX_LONG_PRESS 50 //*10ms
+#define DOUBLECLICK_TIMEOUT 40 //*10ms
 
 #define DIMING_DIRECTION_DOWN 0
 #define DIMING_DIRECTION_UP 1
+
+enum Actions {
+	TURN_OFF = 0,
+	TURN_ON,
+	RAMP_UP,
+	RAMP_DOWN
+};
+
+//------------------------------------------------------
 
 mirfPacket volatile inPacket;
 mirfPacket volatile outPacket;
@@ -44,63 +58,87 @@ mirfPacket volatile outPacket;
 uint16_t volatile longTimer;
 uint8_t volatile timerInterruptTriggered;
 
-typedef union {
-  uint16_t uint;
-  struct {
-    uint8_t lsb;
-    uint8_t msb;
-  };
-} IntUnion;
-
 uint8_t volatile buttonLongPress[3];
-uint8_t volatile lastButtonStates;
+uint8_t volatile lastButtonStates; //slouzi pro vsechny tri tlacitka po bitech
 uint8_t volatile pwmOutput[3];
-uint8_t volatile dimmingDirection;
+uint8_t volatile doubleClickCountdown[3];
+uint8_t volatile rampingDirection; //slouzi pro vsechny tri tlacitka - kazde ma svuj jeden bit, maska je stejna jako pro ostatni operace
+//A protoze po startu je tam nula, coz je pro smer dolu, hodi se to univerzalne, protoze i po jakymkoli startu (at uz full On nebo rampou) by dalsi ramping mel smerovat dolu
+uint8_t volatile rampingActive; //slouzi pro vsechny tri tlacitka po bitech
+uint8_t volatile lastAction[3];
 
 //======================================================
 
 inline void ReadAndProcessButtonStates(void)
 {
   	uint8_t actual_states = BUTTON_STATES;
+  	uint8_t button_mask = 1; //points bitmask to first button position in one-bit-per-button variables
 
-  	// 1st button
-	if (actual_states & BUTTON_MASK_1)
-	{
-		if (lastButtonStates & BUTTON_MASK_1)
-		{
-			if (buttonLongPress[0] < MAX_LONG_PRESS) buttonLongPress[0]++;
-		}
-	}
-	else
-	{
-		buttonLongPress[0] = 0;
-	}
+  	for (uint8_t i = 0; i < 3; i++)
+  	{
+  		if (doubleClickCountdown[i] != 0) doubleClickCountdown[i]--;
 
-  	// 2nd button
-	if (actual_states & BUTTON_MASK_2)
-	{
-		if (lastButtonStates & BUTTON_MASK_2)
+		if (actual_states & button_mask) //je stisknuto
 		{
-			if (buttonLongPress[1] < MAX_LONG_PRESS) buttonLongPress[1]++;
+			if (lastButtonStates & button_mask) //taky minule bylo stisknuto
+			{
+				if (buttonLongPress[i] < MAX_LONG_PRESS) buttonLongPress[i]++;
+				if (buttonLongPress[i] == MAX_LONG_PRESS) //je cas zahajit ramping
+				{
+					//Turn ON ramping
+					buttonLongPress[i]++; //abysme se uměle posunuli za max_long_press a naznacili, ze ramping zacal, ale mozna tady na to neni to spravny misto
+					//nejak triggerovat ramping
+					rampingActive |= button_mask;
+					//musime poznat jestli smerem nahoru nebo dolu a tudiz urcit i vychozi pwm hodnotu
+					if ((pwmOutput[i] == 0) || (!(rampingDirection & button_mask)))
+					{
+						//ramping nahoru, protoze predtim bylo vypnuto, nebo se skoncilo smerem dolu
+						rampingDirection |= button_mask;
+						lastAction[i] = Actions::RAMP_UP;
+					}
+					else
+					{
+						//ramping dolu v ostatnich pripadech
+						rampingDirection &= ~button_mask;
+						lastAction[i] = Actions::RAMP_DOWN;
+					}
+				}
+			}
 		}
-	}
-	else
-	{
-		buttonLongPress[1] = 0;
-	}
+		else //neni stisknuto
+		{
+			if (lastButtonStates & button_mask) //ale bylo stisknuto jeste minule, tzn. release of button happened
+			{
+				//if (buttonLongPress[i] < 2) //nothing to do, just zero the longPress below
+				if ((buttonLongPress[i] > 2) && (buttonLongPress[i] < MAX_LONG_PRESS)) //Short click
+				{
+					if (pwmOutput[i] == 0)
+					{
+						//turn the light ON (to 100%)
+						lastAction[i] = Actions::TURN_ON;
+					}
+					else
+					{
+						//Turn the light OFF (to 0%)
+						lastAction[i] = Actions::TURN_OFF;
 
-  	// 3rd button
-	if (actual_states & BUTTON_MASK_3)
-	{
-		if (lastButtonStates & BUTTON_MASK_3)
-		{
-			if (buttonLongPress[2] < MAX_LONG_PRESS) buttonLongPress[2]++;
+					}
+
+					doubleClickCountdown[i] = DOUBLECLICK_TIMEOUT;
+				}
+				else if (buttonLongPress[i] >= MAX_LONG_PRESS) //release after long press
+				{
+					//Turn OFF ramping
+					rampingActive &= ~button_mask;
+					//Do not care about ramping direction, it is recognized and set at start of ramping ONLY
+				}
+			}
+
+			buttonLongPress[i] = 0;
 		}
-	}
-	else
-	{
-		buttonLongPress[2] = 0;
-	}
+
+		button_mask = (button_mask << 1); //move the single bit (aka mask) to next button position in byte
+  	}
 
   	lastButtonStates = actual_states;
 }
@@ -108,7 +146,6 @@ inline void ReadAndProcessButtonStates(void)
 ISR(TIMER0_COMPA_vect) {
   	timerInterruptTriggered++;
   	longTimer++;
-  	ReadAndProcessButtonStates(); //maybe later could be moved to main() in timerInterruptTriggered block
 }
 
 EMPTY_INTERRUPT(BADISR_vect) //just for case
@@ -140,6 +177,9 @@ void setup()
   DDRB |= (1 << PB2);
   DDRD |= (1 << PD3);
 
+  //Relay pin (output) PD5 (D5 on arduino)
+  RELAY_DDR |= (1 << RELAY_PIN);
+
   //Button pins (input) with internal Pull-Ups (WARNING - buttons are active LOW)
   BUTTON_PORT |= BUTTON_MASK;
 
@@ -169,14 +209,30 @@ void __attribute__ ((OS_main,noreturn)) main (void)
     timerInterruptTriggered = 0;
     Mirf.handleRxLoop();
     Mirf.handleTxLoop();
+
+    ReadAndProcessButtonStates();
   }
 
   //handle buttons and pwm
   for (uint8_t i=0; i < 3; i++)
   {
-	if (buttonLongPress[i] > 
-  }
+	if (buttonLongPress[i] == MAX_LONG_PRESS)
+	{
+		if (pwmOutput[i] == 0) //start ramping up from 0
+		{
 
+		}
+		else //long pres during ON state
+		{
+
+		}
+	}
+	else if (buttonLongPress[i] && !(lastButtonStates & (1 << i))) //short click
+	{
+
+	}
+  }
+  //buttonLongPress[2] = 0;
 
   //zpracovat prichozi packet
   if (Mirf.inPacketReady)
