@@ -38,10 +38,10 @@ typedef struct mirfPacket{
 
 #define NRF_PAYLOAD_SIZE sizeof(mirfPacket)
 
-#define CE_PIN PD6
-#define CSN_PIN PD7
-#define CE_CSN_PORT PORTD
-#define CE_CSN_DDR DDRD
+#define CE_PIN PB1
+#define CSN_PIN PB2
+#define CE_CSN_PORT PORTB
+#define CE_CSN_DDR DDRB
 
 /*
 #define ceHi() PORTB |= (1<<1)

@@ -259,8 +259,8 @@ inline void Nrf24l::removePacketfromAckQueue(void)
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 Nrf24l::Nrf24l() {
-	//cePin = D9; D6 (on dimmer) = PD6
-	//csnPin = D10; D7 (on dimmer) = PD7
+	//cePin = D9;
+	//csnPin = D10;
 	spi = &SPI;
 	baseConfig = ( _BV(EN_CRC) | _BV(MASK_TX_DS) | _BV(MASK_MAX_RT) ) & ~_BV(CRCO);
 	packetCounter = 0;
