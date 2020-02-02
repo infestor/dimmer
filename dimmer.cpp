@@ -128,6 +128,13 @@ inline void ReadAndProcessButtonStates(void)
 					//rampingActive seems not to be necessary so commenting out
 					//rampingActive &= ~button_mask;
 					//Do not care about ramping direction, it is recognized and set at start of ramping ONLY
+
+					//this will prevent rare situation, where there is small probability, that user starts slow ramp up, but releases button so quickly,
+					//that we stop the ramp below 13 (5%) of intensity which is the bottom when ramping down.
+					//And if the user would then want to ramp down, the behavior would be actually to only set pwm to 13, which would
+					//effectively lead to increase of intensity, instead of decrease.
+					//So we have to make slow ramp up also 13 as the lowest value
+					if (pwmOutput[i] < 13) pwmOutput[i] = 13;
 				}
 			}
 
@@ -143,6 +150,8 @@ inline void ReadAndProcessButtonStates(void)
 // this function is run every 10ms, so we can count on that in timing considerations
 void DoPwmStuff(void)
 {
+  	uint8_t button_mask = 1; //points bitmask to first button position in one-bit-per-button variables
+
   	for (uint8_t i = 0; i < 3; i++)
   	{
   		if (intendedState[i] == Actions::TURN_ON)
@@ -159,6 +168,7 @@ void DoPwmStuff(void)
   				pwmOutput[i] = 255;
   				intendedState[i] = Actions::STABLE_ON;
   			}
+  			rampingDirection |= button_mask; //simulate direction UP
   		}
   		else if (intendedState[i] == Actions::TURN_OFF)
   		{
@@ -173,18 +183,13 @@ void DoPwmStuff(void)
   				pwmOutput[i] = 0;
   				intendedState[i] = Actions::STABLE_OFF;
   			}
+  			rampingDirection &= ~button_mask; //simulate direction down
   		}
   		else if (intendedState[i] == Actions::RAMP_UP)
   		{
   			//Slow ramp up, step is 1 so full ramp takes 2.55s
   			if (pwmOutput[i] < 254) //do we need continue to ramp up?
   			{
-  				//this will prevent rare situation, where there is small probability, that user starts slow ramp up, but releases button so quickly,
-  				//that we stop the ramp below 13 (5%) of intensity which is the bottom when ramping down.
-  				//And if the user would then want to ramp down, the behavior would be actually to only set pwm to 13, which would
-  				//effectively lead to increase of intensity, instead of decrease.
-  				//So we have to start slow ramp also on 13 as the lowest value
-  				if (pwmOutput[i] < 12) pwmOutput[i] = 12;
   				pwmOutput[i]++;
   			}
   			else
@@ -223,6 +228,7 @@ void DoPwmStuff(void)
   					pwmOutput[i] = externalRequestValues[i];
   					intendedState[i] = Actions::STABLE_ON;
   				}
+	  			rampingDirection &= ~button_mask; //simulate direction down
   			}
   			else if (pwmOutput[i] < externalRequestValues[i]) //move up
   			{
@@ -235,12 +241,15 @@ void DoPwmStuff(void)
   					pwmOutput[i] = externalRequestValues[i];
   					intendedState[i] = Actions::STABLE_ON;
   				}
+	  			rampingDirection |= button_mask; //simulate direction UP
   			}
   			else
   			{
   				intendedState[i] = Actions::STABLE_ON;
   			}
   		}
+
+		button_mask = (button_mask << 1); //move the single bit (aka mask) to next button position in byte
   	} //end FOR
 
   	//Now we need to move values to real registers. I would do it 'pointer-wise' way (like have const array of &PWM_LVL_x), but it didnt work well. So here it is supersimple.
@@ -249,7 +258,7 @@ void DoPwmStuff(void)
   	PWM_LVL_3 = pwmOutput[2];
 
   	//handle relay state
-  	if ((pwmOutput[0] + pwmOutput[1] + pwmOutput[2]) > 0)
+  	if ((pwmOutput[0] > 0) || (pwmOutput[1] > 0) || (pwmOutput[2] > 0))
   	{
   		RELAY_PORT |= (1 << RELAY_PIN);
   		relayTimer = 0; //every 10ms zero the timer if light is ON
@@ -275,7 +284,7 @@ void setup()
 {
 
   //start Radio
-  Mirf.init(); //WARNING - to be able to use OC1A & OC1B pwm outputs, I had to move CE and CSN pins of mirf to different position, because they overlayed
+  Mirf.init();
   Mirf.config();
   Mirf.setDevAddr(DEV_ADDR);
   Mirf.powerUpRx();
@@ -300,13 +309,13 @@ void setup()
   BUTTON_PORT |= BUTTON_MASK;
 
   //start timer 0 (for PWM1 and PWM2
-  TCCR0A = 0b10100011; //fast PWM, both OCA OCB outputs activated non inverted, no interrupt
+  TCCR0A = 0b10100001; //phase correct PWM, both OCA OCB outputs activated non inverted, no interrupt
    //start timer 2 (for PWM3)
-  TCCR2A = 0b10100011; //fast PWM, both OCA OCB outputs activated non inverted, no interrupt
+  TCCR2A = 0b10100001; //phase correct PWM, both OCA OCB outputs activated non inverted, no interrupt
 
   //prescalers for timer 0 and 2
-  TCCR0B = 0b00000001; //no prescaler, 62Khz (if it will be too much, we can use phase correct pwm which is half frequency)
-  TCCR2B = 0b00000001; //no prescaler, 62Khz
+  TCCR0B = 0b00000001; //no prescaler, 31Khz
+  TCCR2B = 0b00000001; //no prescaler, 31Khz
 }
 
 //======================================================
