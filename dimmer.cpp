@@ -3,10 +3,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h> 
-#include <avr/sleep.h>
-#include <avr/eeprom.h>
-#include <string.h>
-#include <stdio.h>
 #include "Mirf.h"
 #include "Mirf_nRF24L01.h"
 
@@ -58,7 +54,6 @@ uint8_t volatile lastButtonStates; //slouzi pro vsechny tri tlacitka po bitech
 uint8_t volatile pwmOutput[3];
 uint8_t volatile doubleClickCountdown[3];
 uint8_t volatile rampingDirection; //slouzi pro vsechny tri tlacitka - kazde ma svuj jeden bit, maska je stejna jako pro ostatni operace
-//uint8_t volatile rampingActive; //slouzi pro vsechny tri tlacitka po bitech
 uint8_t volatile intendedState[3];
 uint8_t volatile externalRequestValues[3];
 
@@ -83,7 +78,6 @@ inline void ReadAndProcessButtonStates(void)
 					//Turn ON ramping
 					buttonLongPress[i]++; //abysme se uměle posunuli za max_long_press a naznacili, ze ramping zacal, ale mozna tady na to neni to spravny misto
 					//nejak triggerovat ramping
-					//rampingActive |= button_mask;
 					//musime poznat jestli smerem nahoru nebo dolu a tudiz urcit i vychozi pwm hodnotu
 					if ((pwmOutput[i] == 0) || (!(rampingDirection & button_mask)))
 					{
@@ -125,8 +119,6 @@ inline void ReadAndProcessButtonStates(void)
 				{
 					//Turn OFF ramping
 					intendedState[i] = Actions::STABLE_ON;
-					//rampingActive seems not to be necessary so commenting out
-					//rampingActive &= ~button_mask;
 					//Do not care about ramping direction, it is recognized and set at start of ramping ONLY
 
 					//this will prevent rare situation, where there is small probability, that user starts slow ramp up, but releases button so quickly,
@@ -309,9 +301,9 @@ void setup()
   BUTTON_PORT |= BUTTON_MASK;
 
   //start timer 0 (for PWM1 and PWM2
-  TCCR0A = 0b10100001; //phase correct PWM, both OCA OCB outputs activated non inverted, no interrupt
+  TCCR0A = 0b10100001; //phase correct PWM, both OC0A OC0B outputs activated non inverted, no interrupt
    //start timer 2 (for PWM3)
-  TCCR2A = 0b10100001; //phase correct PWM, both OCA OCB outputs activated non inverted, no interrupt
+  TCCR2A = 0b00100001; //phase correct PWM, !!ONLY OC2B!! output activated non inverted, no interrupt (OC2A collides with one of Mirf pins and we dont need it)
 
   //prescalers for timer 0 and 2
   TCCR0B = 0b00000001; //no prescaler, 31Khz

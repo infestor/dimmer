@@ -14,7 +14,7 @@ CFLAGS+=" -fno-tree-scev-cprop"
 CFLAGS+=" -fno-jump-tables"
 CFLAGS+=" -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums"
 CFLAGS+=" -fno-split-wide-types"
-CFLAGS+=" -Wa,-a,-ad"
+#CFLAGS+=" -Wa,-a,-ad"
 CFLAGS+=" -std=c++11"
 
 #CFLAGS+=" -nostartfiles"
@@ -29,10 +29,10 @@ CFLAGS+=" -Wl,--gc-sections"
 CFLAGS+=" -ffunction-sections"
 CFLAGS+=" -fdata-sections"
 
-/local/benejan/tmp/avr/bin/avr-g++ $IFLAGS -g3 -mmcu=$MCU $CFLAGS spilib.c Mirf.cpp dimmer.cpp -o dimmer.elf  > dimmer.llt
+/local/benejan/tmp/avr/bin/avr-g++ $IFLAGS -g3 -Wa,-a,-ad -mmcu=$MCU $CFLAGS spilib.c Mirf.cpp dimmer.cpp -o dimmer.elf  > dimmer.llt
 
 CFLAGS+=" -fwhole-program -flto"
-/local/benejan/tmp/avr/bin/avr-g++ $IFLAGS -mmcu=$MCU $CFLAGS spilib.c Mirf.cpp dimmer.cpp -o dimmer-o.elf  > dimmer-o.llt
+/local/benejan/tmp/avr/bin/avr-g++ $IFLAGS -mmcu=$MCU $CFLAGS spilib.c Mirf.cpp dimmer.cpp -o dimmer-o.elf
 
 #/local/benejan/tmp/avr/bin/avr-g++ -mmcu=$MCU $CFLAGS spilib.o Mirf.o dimmer.o -o dimmer-o.elf
 

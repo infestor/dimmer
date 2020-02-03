@@ -1,7 +1,6 @@
 
-#include "avr/io.h"
+#include <avr/io.h>
 #include "spilib.h"
-#include "arduino_simple.h"
 
 __attribute__((used)) SPIlib SPI = SPIlib();
 

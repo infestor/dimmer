@@ -7,16 +7,16 @@ __attribute__((used)) Nrf24l Mirf = Nrf24l();
 
 //should be run within some timered loop (really often - 10ms)
 void Nrf24l::handleRxLoop(void)
-{   
+{
   Timer++; //every time we must increment timer
   uint8_t innerCounter = 0;
-  
+
   //if (inPacketReady == MAX_RX_PACKET_QUEUE) return;
   //if there is full queue, return a wait for next turn
    while ( dataReady() ) //while something in rx buffer
    {
 	  getData( (uint8_t*) &pendingPacket);
-      
+
 	  if ( (pendingPacket.rxAddr == devAddr) || (pendingPacket.rxAddr == MULTICAST_ADDR) )
 	  { //is the packet for this device? or multicast
 		if ( (sendingStatus == WAIT_ACK) )
@@ -56,7 +56,7 @@ void Nrf24l::handleRxLoop(void)
 			}
 		}
 	  }
-      
+
       //we have to have some theoretical limit staying in this function
       //because if there were too much incoming packets all the time,
       //then this function would never end
@@ -90,17 +90,17 @@ void Nrf24l::handleTxLoop(void) //probably should be run from main program loop,
 
 	//this is for sending user packet
 	if ( whatToSend > 0 ) //new packet in fifo waiting to be sent
-    {      
+    {
 
       flushTx();
       //write user packet to fifo       
       nrfSpiWrite(W_TX_PAYLOAD, pPaket, false, NRF_PAYLOAD_SIZE);  
-      
+
       if ( 1 ) //getCarrier()==0 ) //no carrier detected (free air/free to send)
       {
         powerUpTx();       // Set to transmitter mode , Power up
       	ceHi();                     // Start transmission
-                
+
       	if ( whatToSend == 1) //remove packet if it was ack
       	{
       		removePacketfromAckQueue();
@@ -157,7 +157,7 @@ void Nrf24l::handleTxLoop(void) //probably should be run from main program loop,
 		#endif
     }
     */
-    
+
     //check if there was TIMEOUT in waiting for ACK
     if ( (SENDING_STATUS)sendingStatus == WAIT_ACK) //check whether timeout waiting for ack occured
     {
@@ -218,7 +218,7 @@ uint8_t Nrf24l::sendPacket(mirfPacket* paket)
   sendResult = PROCESSING;
   txAttempt = 1;
   sei();
-  
+
   return packetCounter;
 }
 
@@ -300,7 +300,7 @@ void Nrf24l::config()
 	configRegister(RX_PW_P0, NRF_PAYLOAD_SIZE);
 	configRegister(RX_PW_P1, NRF_PAYLOAD_SIZE);
   setADDR();
-  
+
 	flushRx();
 }
 
@@ -404,7 +404,7 @@ bool Nrf24l::isSending() {
 	uint8_t status;
 	if(PTX){
 		nrfSpiWrite2((R_REGISTER | (REGISTER_MASK & FIFO_STATUS)), &status, true, 1);
-	    	
+
 		/*
 		 *  if sending successful (TX_DS) or max retries exceded (MAX_RT).
 		 */
@@ -487,7 +487,7 @@ void Nrf24l::powerUpTx() {
 	configRegister(CONFIG, baseConfig | (_BV(PWR_UP) & ~_BV(PRIM_RX)) );
 }
 
-void Nrf24l::nrfSpiWrite(uint8_t reg, uint8_t *data, bool readData, uint8_t len) {  
+void Nrf24l::nrfSpiWrite(uint8_t reg, uint8_t *data, bool readData, uint8_t len) {
   csnLow();
 
 	spi->transfer(reg);
@@ -506,11 +506,11 @@ void Nrf24l::nrfSpiWrite(uint8_t reg, uint8_t *data, bool readData, uint8_t len)
 	csnHi();
 }
 
-void Nrf24l::nrfSpiWrite2(uint8_t reg, uint8_t *data, bool readData, uint8_t len) {  
+void Nrf24l::nrfSpiWrite2(uint8_t reg, uint8_t *data, bool readData, uint8_t len) {
   csnLow();
 
 	spi->transfer(reg);
-  spi->transfer(255);
+	spi->transfer(255);
 
 	if (data) {
 		uint8_t i;

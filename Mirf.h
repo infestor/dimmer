@@ -6,7 +6,6 @@
 #include <avr/io.h>
 #include <stdlib.h>
 #include <avr/interrupt.h>
-#include "arduino_simple.h"
 #include "spilib.h"
 #include "packet_defs.h"
 
